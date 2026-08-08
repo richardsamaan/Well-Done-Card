@@ -254,6 +254,10 @@
       <select id="achievementSelect" disabled>
         <option value="">-- Select Position First --</option>
       </select>
+      <div id="customWrap" style="display:none;">
+        <label for="customText">Type the achievement</label>
+        <textarea id="customText" maxlength="160" placeholder="Type the achievement here..."></textarea>
+      </div>
       <div class="hint" id="lineHint">Choose the position, then pick the matching achievement.</div>
 
       <label>Name (Manager)</label>
@@ -318,15 +322,15 @@ const positionOptions = {
     "Completing 5 items alteration in one day.",
     "Completing 2 suits full alteration in one day.",
     "Completing 1 suit and 3 additional items in one day.",
-    "Receiving a 5 star Google review mentioning the tailoring service.",
-    "Volunteering to support the sales floor for half a day and helping drive sales.",
+    "Receiving a 5 star Google review.",
+    "Volunteered during my off day to assist the sales floor and support sales growth.",
     "Supporting a colleague with a sale and customer service. This Well Done Card issued upon the colleague's recommendation."
   ],
   "Sales Associate": [
     "Achieving the daily sales target of BD 700 and above.",
     "Receiving a 5 star customer review.",
     "Completing a sale through WhatsApp.",
-    "Saving a sale by sourcing an item from Al A'Ali Mall when unavailable in store and closing the deal.",
+    "Saved a sale through stock sourcing from Al A'Ali Mall, driving sales and customer satisfaction.",
     "Completing a bulk transaction with a value above BD 500.",
     "Collecting 3 customer contacts in one day for CRM and sharing details in the VIP group.",
     "Volunteering to support the sales floor for half a day and helping drive sales.",
@@ -373,7 +377,13 @@ positionSelect.addEventListener('change', ()=>{
       opt.textContent = text;
       achievementSelect.appendChild(opt);
     });
+    const customOpt = document.createElement('option');
+    customOpt.value = "__custom__";
+    customOpt.textContent = "Other (type your own)";
+    achievementSelect.appendChild(customOpt);
   }
+  document.getElementById('customWrap').style.display = "none";
+  document.getElementById('customText').value = "";
   updatePreview();
 });
 
@@ -416,6 +426,13 @@ function wrapText(text, maxLines){
   return lines.slice(0, maxLines);
 }
 
+function getAchievementText(){
+  if(achievementSelect.value === "__custom__"){
+    return document.getElementById('customText').value;
+  }
+  return achievementSelect.value;
+}
+
 function updatePreview(){
   const id = empIdSelect.value;
   const name = employees[id] || "";
@@ -424,7 +441,7 @@ function updatePreview(){
   pvId.textContent = id;
   pvDate.textContent = formatDate(dateInput.value);
 
-  const lines = wrapText(achievementSelect.value, 6);
+  const lines = wrapText(getAchievementText(), 6);
   for(let i=0;i<pvLines.length;i++){
     if(lines[i]){
       pvLines[i].textContent = lines[i];
@@ -438,7 +455,16 @@ function updatePreview(){
 
 empIdSelect.addEventListener('change', updatePreview);
 dateInput.addEventListener('change', updatePreview);
-achievementSelect.addEventListener('change', updatePreview);
+achievementSelect.addEventListener('change', ()=>{
+  const customWrap = document.getElementById('customWrap');
+  if(achievementSelect.value === "__custom__"){
+    customWrap.style.display = "block";
+  } else {
+    customWrap.style.display = "none";
+  }
+  updatePreview();
+});
+document.getElementById('customText').addEventListener('input', updatePreview);
 
 updatePreview();
 
@@ -450,6 +476,10 @@ document.getElementById('downloadBtn').addEventListener('click', async ()=>{
   }
   if(!achievementSelect.value){
     alert("Please select a position and an achievement first.");
+    return;
+  }
+  if(achievementSelect.value === "__custom__" && !document.getElementById('customText').value.trim()){
+    alert("Please type the achievement in the text box first.");
     return;
   }
   btn.disabled = true;
@@ -475,4 +505,4 @@ document.getElementById('downloadBtn').addEventListener('click', async ()=>{
 });
 </script>
 </body>
-</html>[
+</html>
