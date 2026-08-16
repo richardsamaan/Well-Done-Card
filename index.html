@@ -1,0 +1,1163 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Well Done Card</title>
+
+<!-- iOS: makes the page installable via Add to Home Screen -->
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Well Done Card">
+
+<!-- Android/Chrome theme + PWA manifest (real file, needed for a proper install prompt) -->
+<meta name="theme-color" content="#AD8A4E">
+<link rel="manifest" href="manifest.json">
+
+<!-- Home screen icons for both platforms -->
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="icon" href="icon-192.png">
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+
+<!-- Firebase (compat build - simplest for a plain script, no bundler needed) -->
+<script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore-compat.js"></script>
+
+<!-- EmailJS (for sending the admin verification / reset codes) -->
+<script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
+
+<style>
+  :root{
+    --gold:#AD8A4E;
+    --gold-dark:#8F6F38;
+    --card-bg:#ffffff;
+    --ink:#2b2620;
+    --line:#C9B98A;
+    --bg:#f4f2ee;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    font-family:'Segoe UI', Arial, sans-serif;
+    background:var(--bg);
+    color:var(--ink);
+    padding:16px;
+  }
+  h1{
+    font-size:18px;
+    margin:0 0 4px 0;
+    color:var(--gold-dark);
+  }
+  p.sub{
+    margin:0 0 18px 0;
+    font-size:13px;
+    color:#666;
+  }
+  .wrap{
+    max-width:520px;
+    margin:0 auto;
+    position:relative;
+  }
+  .panel{
+    background:#fff;
+    border-radius:14px;
+    padding:16px;
+    box-shadow:0 1px 4px rgba(0,0,0,0.08);
+    margin-bottom:18px;
+  }
+  label{
+    display:block;
+    font-size:12.5px;
+    font-weight:600;
+    color:var(--gold-dark);
+    margin:12px 0 4px 0;
+  }
+  label:first-child{margin-top:0;}
+  select, input[type="date"], input[type="text"], input[type="email"], input[type="password"], textarea{
+    width:100%;
+    padding:10px 10px;
+    font-size:14px;
+    border:1px solid #ddd;
+    border-radius:8px;
+    background:#fafafa;
+    color:var(--ink);
+    font-family:inherit;
+  }
+  textarea{
+    resize:vertical;
+    min-height:90px;
+    line-height:1.4;
+  }
+  .readonly{
+    background:#f0eee8;
+    color:#555;
+    padding:10px;
+    border-radius:8px;
+    font-size:14px;
+    border:1px solid #e5e0d3;
+    min-height:20px;
+  }
+  .btn{
+    width:100%;
+    padding:13px;
+    font-size:15px;
+    font-weight:700;
+    border:none;
+    border-radius:10px;
+    background:var(--gold);
+    color:#fff;
+    cursor:pointer;
+    margin-top:6px;
+  }
+  .btn:active{background:var(--gold-dark);}
+  .btn:disabled{background:#ccc;cursor:not-allowed;}
+  .btn-secondary{
+    background:#eee;
+    color:var(--ink);
+  }
+  .btn-secondary:active{background:#ddd;}
+  .btn-danger{
+    background:#c0392b;
+  }
+  .btn-danger:active{background:#992d22;}
+  .btn-link{
+    background:none;
+    color:var(--gold-dark);
+    text-decoration:underline;
+    padding:6px;
+    font-size:13px;
+    font-weight:600;
+    width:auto;
+    margin:8px auto 0;
+    display:block;
+  }
+  .hint{
+    font-size:11.5px;
+    color:#888;
+    margin-top:4px;
+  }
+  .error-text{
+    font-size:12.5px;
+    color:#c0392b;
+    margin-top:6px;
+    min-height:0;
+  }
+  .success-text{
+    font-size:12.5px;
+    color:#2f7d3a;
+    margin-top:6px;
+  }
+
+  /* ---- ADMIN BUTTON ---- */
+  .admin-btn{
+    position:fixed;
+    top:12px;
+    right:12px;
+    z-index:50;
+    background:var(--gold);
+    color:#fff;
+    border:none;
+    border-radius:20px;
+    padding:8px 14px;
+    font-size:12.5px;
+    font-weight:700;
+    cursor:pointer;
+    box-shadow:0 1px 4px rgba(0,0,0,0.2);
+    display:flex;
+    align-items:center;
+    gap:6px;
+  }
+  .admin-btn svg{ width:14px; height:14px; fill:#fff; }
+
+  /* ---- MODAL ---- */
+  .modal-overlay{
+    position:fixed;
+    inset:0;
+    background:rgba(0,0,0,0.45);
+    display:none;
+    align-items:flex-start;
+    justify-content:center;
+    padding:40px 16px;
+    overflow-y:auto;
+    z-index:100;
+  }
+  .modal-overlay.open{ display:flex; }
+  .modal-box{
+    background:#fff;
+    border-radius:14px;
+    padding:20px;
+    width:100%;
+    max-width:420px;
+    box-shadow:0 8px 30px rgba(0,0,0,0.25);
+  }
+  .modal-title{
+    font-size:16px;
+    font-weight:700;
+    color:var(--gold-dark);
+    margin:0 0 4px 0;
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+  }
+  .modal-close{
+    background:none;
+    border:none;
+    font-size:20px;
+    line-height:1;
+    cursor:pointer;
+    color:#999;
+    padding:2px 6px;
+  }
+  .modal-sub{
+    font-size:12.5px;
+    color:#777;
+    margin:0 0 10px 0;
+  }
+
+  /* ---- ADMIN PANEL ---- */
+  .admin-section{
+    border-top:1px solid #eee;
+    margin-top:16px;
+    padding-top:14px;
+  }
+  .admin-section h3{
+    font-size:13.5px;
+    color:var(--gold-dark);
+    margin:0 0 10px 0;
+  }
+  .list-row{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:8px;
+    padding:8px 0;
+    border-bottom:1px solid #f0eee8;
+    font-size:13px;
+  }
+  .list-row:last-child{ border-bottom:none; }
+  .list-row .row-text{ flex:1; }
+  .list-row .row-sub{ color:#888; font-size:11.5px; }
+  .icon-btn{
+    background:#f5eee0;
+    border:none;
+    color:#c0392b;
+    border-radius:6px;
+    padding:5px 9px;
+    font-size:12px;
+    cursor:pointer;
+    flex-shrink:0;
+  }
+  .inline-form{
+    display:flex;
+    gap:6px;
+    margin-top:8px;
+  }
+  .inline-form input, .inline-form select{ flex:1; }
+  .inline-form button{
+    width:auto;
+    padding:10px 14px;
+    margin-top:0;
+    flex-shrink:0;
+  }
+  .tab-row{
+    display:flex;
+    gap:6px;
+    margin-bottom:10px;
+  }
+  .tab-btn{
+    flex:1;
+    padding:8px;
+    font-size:12.5px;
+    font-weight:600;
+    border:1px solid #ddd;
+    background:#fafafa;
+    color:#888;
+    border-radius:8px;
+    cursor:pointer;
+  }
+  .tab-btn.active{
+    background:var(--gold);
+    color:#fff;
+    border-color:var(--gold);
+  }
+  .spinner{
+    text-align:center;
+    padding:20px;
+    color:#999;
+    font-size:13px;
+  }
+
+  /* ---- CARD PREVIEW ---- */
+  .stage{
+    display:flex;
+    justify-content:center;
+    margin-bottom:16px;
+  }
+  .frame{
+    width:100%;
+    max-width:480px;
+    aspect-ratio:1/1.02;
+    background:var(--gold);
+    border-radius:22px;
+    padding:22px;
+  }
+  .card{
+    position:relative;
+    background:var(--card-bg);
+    border-radius:16px;
+    width:100%;
+    height:100%;
+    padding:26px 26px 22px 26px;
+    display:flex;
+    flex-direction:column;
+  }
+  .card-inner-border{
+    position:absolute;
+    top:8px; left:8px; right:8px; bottom:8px;
+    border:1px solid var(--gold);
+    border-radius:12px;
+    pointer-events:none;
+  }
+  .row-label{
+    font-size: clamp(13px, 3.6vw, 16px);
+    font-weight:700;
+    color:var(--gold-dark);
+  }
+  .row-value{
+    font-weight:400;
+    color:var(--ink);
+  }
+  .field-name{ margin-bottom:8px; }
+  .field-id-date{
+    display:flex;
+    justify-content:space-between;
+    gap:10px;
+    margin-bottom:16px;
+  }
+  .wd-header{
+    display:flex;
+    align-items:center;
+    gap:8px;
+    margin-bottom:14px;
+  }
+  .thumb-circle{
+    width: clamp(24px,6vw,30px);
+    height: clamp(24px,6vw,30px);
+    border-radius:50%;
+    background:var(--gold);
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    flex-shrink:0;
+  }
+  .thumb-circle svg{
+    width:58%;
+    height:58%;
+    fill:#fff;
+  }
+  .lines{
+    flex:1;
+    display:flex;
+    flex-direction:column;
+    justify-content:flex-start;
+    gap: clamp(10px, 3vw, 16px);
+    margin-bottom:14px;
+  }
+  .line{
+    border-bottom:1px solid var(--line);
+    min-height: clamp(20px, 4.5vw, 26px);
+    display:flex;
+    align-items:flex-end;
+    padding-bottom:2px;
+    font-size: clamp(12px, 3vw, 15px);
+    color:var(--ink);
+    overflow:hidden;
+    white-space:nowrap;
+  }
+  .bottom-fields{
+    margin-top:auto;
+  }
+  .field-simple{
+    margin-bottom:6px;
+  }
+  .logo-j{
+    position:absolute;
+    bottom:16px;
+    right:16px;
+    width: clamp(30px,7vw,38px);
+    height: clamp(30px,7vw,38px);
+    border-radius:50%;
+    background:var(--gold);
+    color:#fff;
+    font-weight:800;
+    font-size: clamp(16px,4vw,20px);
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    font-family:Georgia, serif;
+  }
+
+</style>
+</head>
+<body>
+
+<!-- Admin button, top of screen -->
+<button class="admin-btn" id="adminBtn">
+  <svg viewBox="0 0 24 24"><path d="M12 12c2.7 0 8 1.34 8 4v2H4v-2c0-2.66 5.3-4 8-4zm0-2a4 4 0 1 1 0-8 4 4 0 0 1 0 8z"/></svg>
+  <span id="adminBtnLabel">Admin</span>
+</button>
+
+<div class="wrap">
+  <h1>Well Done Card Generator</h1>
+  <p class="sub">Fill in the details below — the card preview updates automatically.</p>
+
+  <div class="layout">
+    <div class="panel">
+      <label for="empId">Employee ID</label>
+      <select id="empId">
+        <option value="">-- Select Employee ID --</option>
+      </select>
+
+      <label>Employee Name</label>
+      <div class="readonly" id="empNameDisplay">Auto-filled from Employee ID</div>
+
+      <label for="dateInput">Date</label>
+      <input type="date" id="dateInput">
+
+      <label for="positionSelect">Position</label>
+      <select id="positionSelect">
+        <option value="">-- Select Position --</option>
+      </select>
+
+      <label for="achievementSelect">Well Done for:</label>
+      <select id="achievementSelect" disabled>
+        <option value="">-- Select Position First --</option>
+      </select>
+      <div id="customWrap" style="display:none;">
+        <label for="customText">Type the achievement</label>
+        <textarea id="customText" maxlength="160" placeholder="Type the achievement here..."></textarea>
+      </div>
+      <div class="hint" id="lineHint">Choose the position, then pick the matching achievement.</div>
+
+      <label>Name (Manager)</label>
+      <div class="readonly">Richard Samaan</div>
+
+      <button class="btn" id="downloadBtn">Download Card as Image</button>
+    </div>
+
+    <div class="stage">
+      <div class="frame">
+        <div class="card" id="cardCapture">
+          <div class="card-inner-border"></div>
+
+          <div class="field-name">
+            <span class="row-label">Employee Name: </span><span class="row-value" id="pvName"></span>
+          </div>
+          <div class="field-id-date">
+            <div><span class="row-label">Employee ID: </span><span class="row-value" id="pvId"></span></div>
+            <div><span class="row-label">Date: </span><span class="row-value" id="pvDate"></span></div>
+          </div>
+
+          <div class="wd-header">
+            <div class="thumb-circle">
+              <svg viewBox="0 0 24 24"><path d="M2 21h2c.55 0 1-.45 1-1v-9c0-.55-.45-1-1-1H2v11zM22.83 11.17c.11-.25.17-.52.17-.8V9c0-1.1-.9-2-2-2h-5.5l.92-4.65c.05-.22.02-.46-.08-.66a1.007 1.007 0 0 0-1.28-.45L14 1.83 8.5 7.33c-.32.32-.5.76-.5 1.21V19c0 1.1.9 2 2 2h8c.8 0 1.52-.48 1.84-1.21l2.99-6.98c.06-.15.09-.31.09-.47v-1.17z"/></svg>
+            </div>
+            <span class="row-label">Well Done for:</span>
+          </div>
+
+          <div class="lines" id="pvLines">
+            <div class="line"></div>
+            <div class="line"></div>
+            <div class="line"></div>
+            <div class="line"></div>
+            <div class="line"></div>
+            <div class="line"></div>
+          </div>
+
+          <div class="bottom-fields">
+            <div class="field-simple"><span class="row-label">Name: </span><span class="row-value">Richard Samaan</span></div>
+            <div class="field-simple"><span class="row-label">Signature: </span></div>
+          </div>
+
+          <div class="logo-j">J</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ================= LOGIN MODAL ================= -->
+<div class="modal-overlay" id="loginOverlay">
+  <div class="modal-box">
+    <div class="modal-title">
+      <span id="loginTitle">Admin Login</span>
+      <button class="modal-close" id="loginClose">&times;</button>
+    </div>
+    <p class="modal-sub" id="loginSub">Enter your admin email and password.</p>
+
+    <div id="loginFormWrap">
+      <label for="loginEmail">Email</label>
+      <input type="email" id="loginEmail" autocomplete="username" placeholder="you@example.com">
+      <label for="loginPassword">Password</label>
+      <input type="password" id="loginPassword" autocomplete="current-password" placeholder="Password">
+      <div class="error-text" id="loginError"></div>
+      <button class="btn" id="loginSubmitBtn">Log In</button>
+      <button class="btn-link" id="forgotBtn">Forgot password?</button>
+    </div>
+
+    <!-- Shown instead of the form on very first use, when no admin account exists yet -->
+    <div id="setupFormWrap" style="display:none;">
+      <p class="modal-sub">No admin account exists yet. Create one now — this email will also receive password-reset codes.</p>
+      <label for="setupEmail">Admin Email</label>
+      <input type="email" id="setupEmail" placeholder="you@example.com">
+      <label for="setupPassword">Password</label>
+      <input type="password" id="setupPassword" placeholder="Choose a password">
+      <div class="error-text" id="setupError"></div>
+      <button class="btn" id="setupSubmitBtn">Create Admin Account</button>
+    </div>
+  </div>
+</div>
+
+<!-- ================= FORGOT PASSWORD MODAL ================= -->
+<div class="modal-overlay" id="forgotOverlay">
+  <div class="modal-box">
+    <div class="modal-title">
+      <span>Reset Password</span>
+      <button class="modal-close" id="forgotClose">&times;</button>
+    </div>
+
+    <div id="forgotStep1">
+      <p class="modal-sub">We'll email a verification code to the admin address on file.</p>
+      <button class="btn" id="sendCodeBtn">Send Verification Code</button>
+      <div class="error-text" id="forgotStep1Error"></div>
+    </div>
+
+    <div id="forgotStep2" style="display:none;">
+      <p class="modal-sub" id="codeSentTo"></p>
+      <label for="resetCode">Verification Code</label>
+      <input type="text" id="resetCode" maxlength="6" placeholder="6-digit code">
+      <label for="newPassword">New Password</label>
+      <input type="password" id="newPassword" placeholder="New password">
+      <div class="error-text" id="forgotStep2Error"></div>
+      <div class="success-text" id="forgotStep2Success"></div>
+      <button class="btn" id="resetSubmitBtn">Reset Password</button>
+      <button class="btn-link" id="resendCodeBtn">Resend code</button>
+    </div>
+  </div>
+</div>
+
+<!-- ================= ADMIN PANEL MODAL ================= -->
+<div class="modal-overlay" id="adminOverlay">
+  <div class="modal-box">
+    <div class="modal-title">
+      <span>Admin Panel</span>
+      <button class="modal-close" id="adminClose">&times;</button>
+    </div>
+    <p class="modal-sub">Manage staff and the "Well Done for" achievement lists.</p>
+
+    <div class="tab-row">
+      <button class="tab-btn active" id="tabStaffBtn">Staff</button>
+      <button class="tab-btn" id="tabAchBtn">Achievements</button>
+    </div>
+
+    <!-- Staff tab -->
+    <div id="tabStaff">
+      <div id="staffList"><div class="spinner">Loading...</div></div>
+      <div class="inline-form">
+        <input type="text" id="newStaffId" placeholder="Employee ID (e.g. BH0600)">
+        <input type="text" id="newStaffName" placeholder="Full name">
+      </div>
+      <button class="btn" id="addStaffBtn">Add Staff Member</button>
+      <div class="error-text" id="staffError"></div>
+    </div>
+
+    <!-- Achievements tab -->
+    <div id="tabAch" style="display:none;">
+      <label for="achPositionSelect">Position</label>
+      <select id="achPositionSelect"></select>
+
+      <div class="inline-form" style="margin-top:10px;">
+        <input type="text" id="newPositionName" placeholder="New position name">
+        <button class="btn" id="addPositionBtn">Add</button>
+      </div>
+
+      <div class="admin-section">
+        <h3 id="achListTitle">Achievements</h3>
+        <div id="achList"><div class="spinner">Select a position</div></div>
+        <div class="inline-form">
+          <input type="text" id="newAchText" placeholder="New achievement text">
+          <button class="btn" id="addAchBtn">Add</button>
+        </div>
+        <div class="error-text" id="achError"></div>
+      </div>
+    </div>
+
+    <div class="admin-section">
+      <button class="btn btn-secondary" id="logoutBtn">Log Out</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* =========================================================================
+   CONFIG — paste your existing Firebase project config (same one used by
+   the BOSS CRM) and your EmailJS keys here.
+   ========================================================================= */
+const FIREBASE_CONFIG = {
+  apiKey: "AIzaSyByTZWTchIjX90l-Hx7Vh8AD8ebBPndkqA",
+  authDomain: "well-done-card.firebaseapp.com",
+  projectId: "well-done-card",
+  storageBucket: "well-done-card.firebasestorage.app",
+  messagingSenderId: "398156068509",
+  appId: "1:398156068509:web:27f241b55290663a9d4674"
+};
+const EMAILJS_PUBLIC_KEY = "xzcjG9KQJAkWyw54b";
+const EMAILJS_SERVICE_ID = "service_ibfu1t8";
+const EMAILJS_TEMPLATE_ID = "75h1xms"; // template must include {{to_email}} and {{code}}
+/* ========================================================================= */
+
+firebase.initializeApp(FIREBASE_CONFIG);
+const db = firebase.firestore();
+if (window.emailjs) emailjs.init({ publicKey: EMAILJS_PUBLIC_KEY });
+
+// ---- Fallback defaults (used only to seed Firestore the very first time) ----
+const DEFAULT_EMPLOYEES = {
+  "BH0591": "Dima Danoun",
+  "BH0432": "Mohamed Nabil Elhaddad",
+  "BH0586": "Mriem Abdulkareem Bejaoui",
+  "BH0552": "Rafiqul Islam",
+  "BH0058": "Sandy Garcia Bodoso"
+};
+
+const DEFAULT_POSITIONS = {
+  "Tailor": [
+    "Completing alterations and delivering them on the same day. (Urgent)",
+    "Completing 5 items alteration in one day.",
+    "Completing 2 suits full alteration in one day.",
+    "Completing 1 suit and 3 additional items in one day.",
+    "Receiving a 5 star Google review.",
+    "Volunteered during my off day to assist the sales floor and support sales growth.",
+    "Supporting a colleague with a sale and customer service. This Well Done Card issued upon the colleague's recommendation."
+  ],
+  "Sales Associate": [
+    "Achieving the daily sales target of BD 700 and above.",
+    "Receiving a 5 star customer review.",
+    "Completing a sale through WhatsApp.",
+    "Saved a sale through stock sourcing from Al A'Ali Mall, driving sales and customer satisfaction.",
+    "Completing a bulk transaction with a value above BD 500.",
+    "Collecting 3 customer contacts in one day for CRM and sharing details in the VIP group.",
+    "Volunteering to support the sales floor for half a day and helping drive sales.",
+    "Supporting a colleague with a sale and customer service. This Well Done Card issued upon the colleague's recommendation."
+  ]
+};
+
+let employees = {};
+let positionOptions = {};
+
+// ---------------------------------------------------------------------------
+// Firestore helpers
+// ---------------------------------------------------------------------------
+async function loadData(){
+  const empSnap = await db.collection('employees').get();
+  if (empSnap.empty) {
+    // seed once from defaults
+    const batch = db.batch();
+    Object.entries(DEFAULT_EMPLOYEES).forEach(([id, name]) => {
+      batch.set(db.collection('employees').doc(id), { name });
+    });
+    await batch.commit();
+    employees = { ...DEFAULT_EMPLOYEES };
+  } else {
+    employees = {};
+    empSnap.forEach(d => employees[d.id] = d.data().name);
+  }
+
+  const posSnap = await db.collection('positions').get();
+  if (posSnap.empty) {
+    const batch = db.batch();
+    Object.entries(DEFAULT_POSITIONS).forEach(([pos, list]) => {
+      batch.set(db.collection('positions').doc(pos), { achievements: list });
+    });
+    await batch.commit();
+    positionOptions = JSON.parse(JSON.stringify(DEFAULT_POSITIONS));
+  } else {
+    positionOptions = {};
+    posSnap.forEach(d => positionOptions[d.id] = d.data().achievements || []);
+  }
+}
+
+function simpleHash(str){
+  // Not cryptographically bulletproof, but fine for an internal single-admin tool.
+  return crypto.subtle.digest('SHA-256', new TextEncoder().encode(str))
+    .then(buf => Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2,'0')).join(''));
+}
+
+async function getAdminDoc(){
+  const snap = await db.collection('admin').doc('credentials').get();
+  return snap.exists ? snap.data() : null;
+}
+
+// ---------------------------------------------------------------------------
+// Populate selects (card generator side)
+// ---------------------------------------------------------------------------
+const empIdSelect = document.getElementById('empId');
+const positionSelect = document.getElementById('positionSelect');
+const achievementSelect = document.getElementById('achievementSelect');
+
+function renderEmployeeOptions(){
+  empIdSelect.innerHTML = '<option value="">-- Select Employee ID --</option>';
+  Object.keys(employees).sort().forEach(id=>{
+    const opt = document.createElement('option');
+    opt.value = id;
+    opt.textContent = id + " — " + employees[id];
+    empIdSelect.appendChild(opt);
+  });
+}
+
+function renderPositionOptions(){
+  positionSelect.innerHTML = '<option value="">-- Select Position --</option>';
+  Object.keys(positionOptions).forEach(pos=>{
+    const opt = document.createElement('option');
+    opt.value = pos;
+    opt.textContent = pos;
+    positionSelect.appendChild(opt);
+  });
+}
+
+positionSelect.addEventListener('change', ()=>{
+  const pos = positionSelect.value;
+  achievementSelect.innerHTML = "";
+  if(!pos){
+    achievementSelect.disabled = true;
+    const opt = document.createElement('option');
+    opt.value = "";
+    opt.textContent = "-- Select Position First --";
+    achievementSelect.appendChild(opt);
+  } else {
+    achievementSelect.disabled = false;
+    const placeholder = document.createElement('option');
+    placeholder.value = "";
+    placeholder.textContent = "-- Select Achievement --";
+    achievementSelect.appendChild(placeholder);
+    (positionOptions[pos]||[]).forEach(text=>{
+      const opt = document.createElement('option');
+      opt.value = text;
+      opt.textContent = text;
+      achievementSelect.appendChild(opt);
+    });
+    const customOpt = document.createElement('option');
+    customOpt.value = "__custom__";
+    customOpt.textContent = "Other (type your own)";
+    achievementSelect.appendChild(customOpt);
+  }
+  document.getElementById('customWrap').style.display = "none";
+  document.getElementById('customText').value = "";
+  updatePreview();
+});
+
+const empNameDisplay = document.getElementById('empNameDisplay');
+const dateInput = document.getElementById('dateInput');
+const pvName = document.getElementById('pvName');
+const pvId = document.getElementById('pvId');
+const pvDate = document.getElementById('pvDate');
+const pvLines = document.getElementById('pvLines').children;
+
+const today = new Date();
+dateInput.value = today.toISOString().slice(0,10);
+
+function formatDate(isoStr){
+  if(!isoStr) return "";
+  const d = new Date(isoStr + "T00:00:00");
+  const day = String(d.getDate()).padStart(2,'0');
+  const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  return `${day} ${months[d.getMonth()]} ${d.getFullYear()}`;
+}
+
+function wrapText(text, maxLines){
+  const maxCharsPerLine = 40;
+  const words = text.trim().split(/\s+/).filter(Boolean);
+  const lines = [];
+  let current = "";
+  for(const w of words){
+    const test = current ? current + " " + w : w;
+    if(test.length > maxCharsPerLine){
+      if(current) lines.push(current);
+      current = w;
+      if(lines.length >= maxLines) break;
+    } else {
+      current = test;
+    }
+  }
+  if(current && lines.length < maxLines) lines.push(current);
+  return lines.slice(0, maxLines);
+}
+
+function getAchievementText(){
+  if(achievementSelect.value === "__custom__"){
+    return document.getElementById('customText').value;
+  }
+  return achievementSelect.value;
+}
+
+function updatePreview(){
+  const id = empIdSelect.value;
+  const name = employees[id] || "";
+  empNameDisplay.textContent = name || "Auto-filled from Employee ID";
+  pvName.textContent = name;
+  pvId.textContent = id;
+  pvDate.textContent = formatDate(dateInput.value);
+
+  const lines = wrapText(getAchievementText(), 6);
+  for(let i=0;i<pvLines.length;i++){
+    if(lines[i]){
+      pvLines[i].textContent = lines[i];
+      pvLines[i].style.display = "";
+    } else {
+      pvLines[i].textContent = "";
+      pvLines[i].style.display = "none";
+    }
+  }
+}
+
+empIdSelect.addEventListener('change', updatePreview);
+dateInput.addEventListener('change', updatePreview);
+achievementSelect.addEventListener('change', ()=>{
+  const customWrap = document.getElementById('customWrap');
+  if(achievementSelect.value === "__custom__"){
+    customWrap.style.display = "block";
+  } else {
+    customWrap.style.display = "none";
+  }
+  updatePreview();
+});
+document.getElementById('customText').addEventListener('input', updatePreview);
+
+document.getElementById('downloadBtn').addEventListener('click', async ()=>{
+  const btn = document.getElementById('downloadBtn');
+  if(!empIdSelect.value){
+    alert("Please select an Employee ID first.");
+    return;
+  }
+  if(!achievementSelect.value){
+    alert("Please select a position and an achievement first.");
+    return;
+  }
+  if(achievementSelect.value === "__custom__" && !document.getElementById('customText').value.trim()){
+    alert("Please type the achievement in the text box first.");
+    return;
+  }
+  btn.disabled = true;
+  btn.textContent = "Generating...";
+  try{
+    const frame = document.querySelector('.frame');
+    const canvas = await html2canvas(frame, {
+      scale: 3,
+      backgroundColor: null,
+      useCORS: true
+    });
+    const link = document.createElement('a');
+    const safeName = (employees[empIdSelect.value]||"employee").replace(/\s+/g,'_');
+    link.download = `WellDone_${empIdSelect.value}_${safeName}.png`;
+    link.href = canvas.toDataURL('image/png');
+    link.click();
+  }catch(e){
+    alert("Something went wrong generating the image. Please try again.");
+    console.error(e);
+  }
+  btn.disabled = false;
+  btn.textContent = "Download Card as Image";
+});
+
+// =============================================================================
+// ADMIN: session, login, setup, forgot password
+// =============================================================================
+let isAdminLoggedIn = false;
+
+const adminBtn = document.getElementById('adminBtn');
+const loginOverlay = document.getElementById('loginOverlay');
+const forgotOverlay = document.getElementById('forgotOverlay');
+const adminOverlay = document.getElementById('adminOverlay');
+
+function openModal(el){ el.classList.add('open'); }
+function closeModal(el){ el.classList.remove('open'); }
+
+adminBtn.addEventListener('click', async ()=>{
+  if (isAdminLoggedIn){
+    openModal(adminOverlay);
+    loadStaffTab();
+    return;
+  }
+  document.getElementById('loginError').textContent = "";
+  document.getElementById('loginEmail').value = "";
+  document.getElementById('loginPassword').value = "";
+  const admin = await getAdminDoc();
+  if (admin){
+    document.getElementById('loginFormWrap').style.display = "block";
+    document.getElementById('setupFormWrap').style.display = "none";
+  } else {
+    document.getElementById('loginFormWrap').style.display = "none";
+    document.getElementById('setupFormWrap').style.display = "block";
+  }
+  openModal(loginOverlay);
+});
+
+document.getElementById('loginClose').addEventListener('click', ()=> closeModal(loginOverlay));
+document.getElementById('forgotClose').addEventListener('click', ()=> closeModal(forgotOverlay));
+document.getElementById('adminClose').addEventListener('click', ()=> closeModal(adminOverlay));
+
+// ---- First-time setup ----
+document.getElementById('setupSubmitBtn').addEventListener('click', async ()=>{
+  const email = document.getElementById('setupEmail').value.trim();
+  const pass = document.getElementById('setupPassword').value;
+  const errEl = document.getElementById('setupError');
+  errEl.textContent = "";
+  if(!email || !pass){ errEl.textContent = "Please fill in both fields."; return; }
+  if(pass.length < 6){ errEl.textContent = "Password should be at least 6 characters."; return; }
+  const hash = await simpleHash(pass);
+  await db.collection('admin').doc('credentials').set({ email, passwordHash: hash });
+  isAdminLoggedIn = true;
+  closeModal(loginOverlay);
+  openModal(adminOverlay);
+  loadStaffTab();
+});
+
+// ---- Login ----
+document.getElementById('loginSubmitBtn').addEventListener('click', async ()=>{
+  const email = document.getElementById('loginEmail').value.trim();
+  const pass = document.getElementById('loginPassword').value;
+  const errEl = document.getElementById('loginError');
+  errEl.textContent = "";
+  const admin = await getAdminDoc();
+  if(!admin){ errEl.textContent = "No admin account found."; return; }
+  const hash = await simpleHash(pass);
+  if(email.toLowerCase() !== admin.email.toLowerCase() || hash !== admin.passwordHash){
+    errEl.textContent = "Incorrect email or password.";
+    return;
+  }
+  isAdminLoggedIn = true;
+  closeModal(loginOverlay);
+  openModal(adminOverlay);
+  loadStaffTab();
+});
+
+document.getElementById('logoutBtn').addEventListener('click', ()=>{
+  isAdminLoggedIn = false;
+  closeModal(adminOverlay);
+});
+
+// ---- Forgot password ----
+document.getElementById('forgotBtn').addEventListener('click', async ()=>{
+  closeModal(loginOverlay);
+  document.getElementById('forgotStep1').style.display = "block";
+  document.getElementById('forgotStep2').style.display = "none";
+  document.getElementById('forgotStep1Error').textContent = "";
+  openModal(forgotOverlay);
+});
+
+async function sendResetCode(){
+  const errEl = document.getElementById('forgotStep1Error');
+  errEl.textContent = "";
+  const admin = await getAdminDoc();
+  if(!admin){ errEl.textContent = "No admin account exists yet."; return; }
+
+  const code = String(Math.floor(100000 + Math.random()*900000));
+  const expiresAt = Date.now() + 15*60*1000; // 15 minutes
+  await db.collection('admin').doc('resetRequest').set({ code, expiresAt, email: admin.email });
+
+  try{
+    await emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, {
+      to_email: admin.email,
+      code: code
+    });
+  }catch(e){
+    console.error(e);
+    errEl.textContent = "Could not send the email. Check the EmailJS setup.";
+    return;
+  }
+
+  document.getElementById('codeSentTo').textContent = `Code sent to ${admin.email}. It expires in 15 minutes.`;
+  document.getElementById('forgotStep1').style.display = "none";
+  document.getElementById('forgotStep2').style.display = "block";
+  document.getElementById('resetCode').value = "";
+  document.getElementById('newPassword').value = "";
+  document.getElementById('forgotStep2Error').textContent = "";
+  document.getElementById('forgotStep2Success').textContent = "";
+}
+document.getElementById('sendCodeBtn').addEventListener('click', sendResetCode);
+document.getElementById('resendCodeBtn').addEventListener('click', sendResetCode);
+
+document.getElementById('resetSubmitBtn').addEventListener('click', async ()=>{
+  const code = document.getElementById('resetCode').value.trim();
+  const newPass = document.getElementById('newPassword').value;
+  const errEl = document.getElementById('forgotStep2Error');
+  errEl.textContent = "";
+  if(!code || !newPass){ errEl.textContent = "Please fill in both fields."; return; }
+  if(newPass.length < 6){ errEl.textContent = "Password should be at least 6 characters."; return; }
+
+  const reqSnap = await db.collection('admin').doc('resetRequest').get();
+  if(!reqSnap.exists){ errEl.textContent = "No reset request found. Send a new code."; return; }
+  const req = reqSnap.data();
+  if(Date.now() > req.expiresAt){ errEl.textContent = "This code has expired. Send a new one."; return; }
+  if(code !== req.code){ errEl.textContent = "Incorrect code."; return; }
+
+  const hash = await simpleHash(newPass);
+  await db.collection('admin').doc('credentials').update({ passwordHash: hash });
+  await db.collection('admin').doc('resetRequest').delete();
+
+  document.getElementById('forgotStep2Success').textContent = "Password updated. You can log in now.";
+  setTimeout(()=>{
+    closeModal(forgotOverlay);
+  }, 1200);
+});
+
+// =============================================================================
+// ADMIN PANEL: staff tab
+// =============================================================================
+const tabStaffBtn = document.getElementById('tabStaffBtn');
+const tabAchBtn = document.getElementById('tabAchBtn');
+const tabStaff = document.getElementById('tabStaff');
+const tabAch = document.getElementById('tabAch');
+
+tabStaffBtn.addEventListener('click', ()=>{
+  tabStaffBtn.classList.add('active');
+  tabAchBtn.classList.remove('active');
+  tabStaff.style.display = "block";
+  tabAch.style.display = "none";
+  loadStaffTab();
+});
+tabAchBtn.addEventListener('click', ()=>{
+  tabAchBtn.classList.add('active');
+  tabStaffBtn.classList.remove('active');
+  tabAch.style.display = "block";
+  tabStaff.style.display = "none";
+  loadAchTab();
+});
+
+function loadStaffTab(){
+  const listEl = document.getElementById('staffList');
+  listEl.innerHTML = "";
+  Object.keys(employees).sort().forEach(id=>{
+    const row = document.createElement('div');
+    row.className = 'list-row';
+    row.innerHTML = `<div class="row-text">${id} <span class="row-sub">${employees[id]}</span></div>
+      <button class="icon-btn" data-id="${id}">Remove</button>`;
+    row.querySelector('button').addEventListener('click', async ()=>{
+      await db.collection('employees').doc(id).delete();
+      delete employees[id];
+      renderEmployeeOptions();
+      loadStaffTab();
+    });
+    listEl.appendChild(row);
+  });
+  if(Object.keys(employees).length === 0){
+    listEl.innerHTML = '<div class="hint">No staff yet.</div>';
+  }
+}
+
+document.getElementById('addStaffBtn').addEventListener('click', async ()=>{
+  const idEl = document.getElementById('newStaffId');
+  const nameEl = document.getElementById('newStaffName');
+  const errEl = document.getElementById('staffError');
+  const id = idEl.value.trim().toUpperCase();
+  const name = nameEl.value.trim();
+  errEl.textContent = "";
+  if(!id || !name){ errEl.textContent = "Enter both an Employee ID and a name."; return; }
+  if(employees[id]){ errEl.textContent = "That Employee ID already exists."; return; }
+  await db.collection('employees').doc(id).set({ name });
+  employees[id] = name;
+  idEl.value = "";
+  nameEl.value = "";
+  renderEmployeeOptions();
+  loadStaffTab();
+});
+
+// =============================================================================
+// ADMIN PANEL: achievements tab
+// =============================================================================
+const achPositionSelect = document.getElementById('achPositionSelect');
+
+function loadAchTab(){
+  achPositionSelect.innerHTML = "";
+  Object.keys(positionOptions).forEach(pos=>{
+    const opt = document.createElement('option');
+    opt.value = pos;
+    opt.textContent = pos;
+    achPositionSelect.appendChild(opt);
+  });
+  renderAchList();
+}
+achPositionSelect.addEventListener('change', renderAchList);
+
+function renderAchList(){
+  const pos = achPositionSelect.value;
+  const listEl = document.getElementById('achList');
+  document.getElementById('achListTitle').textContent = pos ? `Achievements — ${pos}` : "Achievements";
+  listEl.innerHTML = "";
+  if(!pos){ listEl.innerHTML = '<div class="hint">Add a position first.</div>'; return; }
+  (positionOptions[pos]||[]).forEach((text, idx)=>{
+    const row = document.createElement('div');
+    row.className = 'list-row';
+    row.innerHTML = `<div class="row-text">${text}</div><button class="icon-btn">Remove</button>`;
+    row.querySelector('button').addEventListener('click', async ()=>{
+      positionOptions[pos].splice(idx,1);
+      await db.collection('positions').doc(pos).set({ achievements: positionOptions[pos] });
+      renderAchList();
+      if(positionSelect.value === pos) positionSelect.dispatchEvent(new Event('change'));
+    });
+    listEl.appendChild(row);
+  });
+  if((positionOptions[pos]||[]).length === 0){
+    listEl.innerHTML += '<div class="hint">No achievements yet for this position.</div>';
+  }
+}
+
+document.getElementById('addPositionBtn').addEventListener('click', async ()=>{
+  const nameEl = document.getElementById('newPositionName');
+  const name = nameEl.value.trim();
+  if(!name) return;
+  if(positionOptions[name]) { nameEl.value = ""; return; }
+  positionOptions[name] = [];
+  await db.collection('positions').doc(name).set({ achievements: [] });
+  nameEl.value = "";
+  renderPositionOptions();
+  loadAchTab();
+  achPositionSelect.value = name;
+  renderAchList();
+});
+
+document.getElementById('addAchBtn').addEventListener('click', async ()=>{
+  const pos = achPositionSelect.value;
+  const textEl = document.getElementById('newAchText');
+  const errEl = document.getElementById('achError');
+  const text = textEl.value.trim();
+  errEl.textContent = "";
+  if(!pos){ errEl.textContent = "Choose or add a position first."; return; }
+  if(!text){ errEl.textContent = "Type an achievement first."; return; }
+  positionOptions[pos] = positionOptions[pos] || [];
+  positionOptions[pos].push(text);
+  await db.collection('positions').doc(pos).set({ achievements: positionOptions[pos] });
+  textEl.value = "";
+  renderAchList();
+  if(positionSelect.value === pos) positionSelect.dispatchEvent(new Event('change'));
+});
+
+// =============================================================================
+// Boot
+// =============================================================================
+(async function init(){
+  await loadData();
+  renderEmployeeOptions();
+  renderPositionOptions();
+  updatePreview();
+})();
+
+// Register the service worker so the browser treats this as a real installable app.
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('sw.js').catch(err => console.log('SW registration failed:', err));
+  });
+}
+</script>
+</body>
+</html>
