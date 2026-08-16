@@ -162,10 +162,6 @@
 
   /* ---- ADMIN BUTTON ---- */
   .admin-btn{
-    position:fixed;
-    top:12px;
-    right:12px;
-    z-index:50;
     background:var(--gold);
     color:#fff;
     border:none;
@@ -175,7 +171,7 @@
     font-weight:700;
     cursor:pointer;
     box-shadow:0 1px 4px rgba(0,0,0,0.2);
-    display:flex;
+    display:inline-flex;
     align-items:center;
     gap:6px;
   }
@@ -417,13 +413,13 @@
 </head>
 <body>
 
-<!-- Admin button, top of screen -->
-<button class="admin-btn" id="adminBtn">
-  <svg viewBox="0 0 24 24"><path d="M12 12c2.7 0 8 1.34 8 4v2H4v-2c0-2.66 5.3-4 8-4zm0-2a4 4 0 1 1 0-8 4 4 0 0 1 0 8z"/></svg>
-  <span id="adminBtnLabel">Admin</span>
-</button>
-
 <div class="wrap">
+  <div style="text-align:center; margin-bottom:10px;">
+    <button class="admin-btn" id="adminBtn">
+      <svg viewBox="0 0 24 24"><path d="M12 12c2.7 0 8 1.34 8 4v2H4v-2c0-2.66 5.3-4 8-4zm0-2a4 4 0 1 1 0-8 4 4 0 0 1 0 8z"/></svg>
+      <span id="adminBtnLabel">Admin</span>
+    </button>
+  </div>
   <h1>Well Done Card Generator</h1>
   <p class="sub">Fill in the details below — the card preview updates automatically.</p>
 
