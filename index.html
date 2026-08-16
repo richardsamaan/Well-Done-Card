@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, shrink-to-fit=no">
 <title>Well Done Card</title>
 
 <!-- iOS: makes the page installable via Add to Home Screen -->
@@ -36,6 +36,11 @@
     --line:#C9B98A;
     --bg:#f4f2ee;
   }
+  html{
+    width:100%;
+    max-width:100%;
+    overflow-x:hidden;
+  }
   *{box-sizing:border-box;}
   body{
     margin:0;
@@ -45,6 +50,9 @@
     min-height:100vh;
     min-height:100dvh;
     padding:0;
+    width:100%;
+    max-width:100%;
+    overflow-x:hidden;
   }
   h1{
     font-size:20px;
