@@ -294,6 +294,23 @@
     font-size:13px;
   }
 
+  .screen{
+    display:none;
+    width:100%;
+  }
+  .screen.active{
+    display:block;
+  }
+  .screen-card .btn{
+    max-width:520px;
+    margin-left:auto;
+    margin-right:auto;
+    display:block;
+  }
+  .screen-card .btn-secondary{
+    margin-bottom:10px;
+  }
+
   /* ---- CARD PREVIEW ---- */
   .stage{
     display:flex;
@@ -418,7 +435,7 @@
   <h1>Well Done Card Generator</h1>
   <p class="sub">Fill in the details below — the card preview updates automatically.</p>
 
-  <div class="layout">
+  <div class="screen screen-form active" id="screenForm">
     <div class="panel">
       <label for="empId">Employee ID</label>
       <select id="empId">
@@ -449,9 +466,11 @@
       <label>Name (Manager)</label>
       <div class="readonly">Richard Samaan</div>
 
-      <button class="btn" id="downloadBtn">Download Card as Image</button>
+      <button class="btn" id="nextBtn">Preview Card</button>
     </div>
+  </div>
 
+  <div class="screen screen-card" id="screenCard">
     <div class="stage">
       <div class="frame">
         <div class="card" id="cardCapture">
@@ -490,6 +509,8 @@
         </div>
       </div>
     </div>
+    <button class="btn btn-secondary" id="backBtn">Back to Form</button>
+    <button class="btn" id="downloadBtn">Download Card as Image</button>
   </div>
 </div>
 
@@ -838,6 +859,31 @@ achievementSelect.addEventListener('change', ()=>{
   updatePreview();
 });
 document.getElementById('customText').addEventListener('input', updatePreview);
+
+document.getElementById('nextBtn').addEventListener('click', ()=>{
+  if(!empIdSelect.value){
+    alert("Please select an Employee ID first.");
+    return;
+  }
+  if(!achievementSelect.value){
+    alert("Please select a position and an achievement first.");
+    return;
+  }
+  if(achievementSelect.value === "__custom__" && !document.getElementById('customText').value.trim()){
+    alert("Please type the achievement in the text box first.");
+    return;
+  }
+  updatePreview();
+  document.getElementById('screenForm').classList.remove('active');
+  document.getElementById('screenCard').classList.add('active');
+  window.scrollTo(0,0);
+});
+
+document.getElementById('backBtn').addEventListener('click', ()=>{
+  document.getElementById('screenCard').classList.remove('active');
+  document.getElementById('screenForm').classList.add('active');
+  window.scrollTo(0,0);
+});
 
 document.getElementById('downloadBtn').addEventListener('click', async ()=>{
   const btn = document.getElementById('downloadBtn');
